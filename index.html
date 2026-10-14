@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Sudoku Helper</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        padding: 20px 12px 40px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                     sans-serif;
+        background: #f5f5f5;
+        color: #222;
+    }
+
+    .app {
+        width: min(100%, 620px);
+        margin: 0 auto;
+    }
+
+    h1 {
+        margin: 0 0 6px;
+        font-size: 26px;
+    }
+
+    .description {
+        margin: 0 0 18px;
+        color: #666;
+        font-size: 14px;
+    }
+
+    .panel {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 190px;
+        resize: vertical;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    button {
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 16px;
+        font-size: 15px;
+        cursor: pointer;
+        background: #333;
+        color: white;
+    }
+
+    button:hover {
+        opacity: 0.88;
+    }
+
+    button.secondary {
+        background: #777;
+    }
+
+    button.danger {
+        background: #b33;
+    }
+
+    .buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .message {
+        min-height: 20px;
+        margin-top: 10px;
+        font-size: 14px;
+        color: #b33;
+    }
+
+    .sudoku-wrap {
+        display: flex;
+        justify-content: center;
+        overflow-x: auto;
+        padding: 4px 0;
+    }
+
+    .sudoku {
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        width: min(92vw, 500px);
+        aspect-ratio: 1;
+        border: 3px solid #222;
+        background: #222;
+        gap: 0;
+    }
+
+    .cell {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        border-right: 1px solid #aaa;
+        border-bottom: 1px solid #aaa;
+        font-size: clamp(18px, 5vw, 30px);
+        font-weight: 500;
+        user-select: none;
+        cursor: pointer;
+    }
+
+    .cell:nth-child(3n) {
+        border-right: 3px solid #222;
+    }
+
+    .cell:nth-child(9n) {
+        border-right: 0;
+    }
+
+    .cell:nth-child(n+19):nth-child(-n+27),
+    .cell:nth-child(n+46):nth-child(-n+54) {
+        border-bottom: 3px solid #222;
+    }
+
+    .cell:nth-child(n+73) {
+        border-bottom: 0;
+    }
+
+    .cell.given {
+        background: #e9e9e9;
+        font-weight: 700;
+        cursor: default;
+    }
+
+    .cell.user {
+        color: #174ea6;
+        font-weight: 600;
+    }
+
+    .cell.selected {
+        background: #dce9ff;
+        outline: 3px solid #4a78d1;
+        outline-offset: -3px;
+        z-index: 2;
+    }
+
+    .cell.related {
+        background: #f1f5fc;
+    }
+
+    .cell.same-number {
+        background: #e6eefc;
+    }
+
+    .cell.error {
+        color: #b00020;
+    }
+
+    .row-labels {
+        display: none;
+    }
+
+    .input-help {
+        margin-top: 12px;
+        font-size: 13px;
+        color: #666;
+        text-align: center;
+    }
+
+    .keypad {
+        margin: 16px auto 0;
+        width: min(100%, 360px);
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .keypad button {
+        min-height: 48px;
+        font-size: 20px;
+        background: #444;
+    }
+
+    .keypad .clear {
+        grid-column: 1 / -1;
+        background: #777;
+    }
+
+    .answer-box {
+        width: 100%;
+        min-height: 150px;
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 15px;
+        line-height: 1.5;
+        white-space: pre;
+        overflow: auto;
+        background: #fafafa;
+    }
+
+    .answer-info {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: #666;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    @media (max-width: 480px) {
+        body {
+            padding: 12px 8px 30px;
+        }
+
+        .panel {
+            padding: 12px;
+        }
+
+        h1 {
+            font-size: 23px;
+        }
+
+        button {
+            min-height: 44px;
+        }
+
+        .cell {
+            font-size: 20px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <h1>Sudoku Helper</h1>
+    <p class="description">
+        Paste a Sudoku puzzle from Discord, enter your solution, and convert it to the required answer format.
+    </p>
+
+    <!-- Problem input -->
+    <div class="panel">
+        <strong>① Paste the puzzle</strong>
+
+        <textarea id="problemInput"
+            placeholder="Paste the Sudoku puzzle from Discord here."></textarea>
+
+        <div class="buttons">
+            <button id="loadButton" type="button">Load Puzzle</button>
+            <button id="exampleButton" type="button" class="secondary">Show Example</button>
+        </div>
+
+        <div id="message" class="message" aria-live="polite"></div>
+    </div>
+
+    <!-- Sudoku -->
+    <div id="boardPanel" class="panel hidden">
+        <strong>② Enter your solution</strong>
+
+        <div class="sudoku-wrap">
+            <div id="sudoku" class="sudoku" aria-label="Sudoku board"></div>
+        </div>
+
+        <div class="input-help">
+            Tap a cell to enter a number.<br>
+            On PC, you can also use the number keys 1–9, Backspace, Delete, and the arrow keys.
+        </div>
+
+        <div id="keypad" class="keypad">
+            <button type="button" data-number="1">1</button>
+            <button type="button" data-number="2">2</button>
+            <button type="button" data-number="3">3</button>
+            <button type="button" data-number="4">4</button>
+            <button type="button" data-number="5">5</button>
+            <button type="button" data-number="6">6</button>
+            <button type="button" data-number="7">7</button>
+            <button type="button" data-number="8">8</button>
+            <button type="button" data-number="9">9</button>
+            <button type="button" class="clear" data-number="0">Clear</button>
+        </div>
+
+        <div class="buttons">
+            <button id="answerButton" type="button">Create Answer</button>
+            <button id="resetButton" type="button" class="danger">Reset Board</button>
+        </div>
+    </div>
+
+    <!-- Answer -->
+    <div id="answerPanel" class="panel hidden">
+        <strong>③ Submit your answer to Discord</strong>
+
+        <p class="answer-info">
+            Only cells that were originally blank are included.
+        </p>
+
+        <textarea id="answerOutput" class="answer-box" readonly></textarea>
+
+        <div class="buttons">
+            <button id="copyButton" type="button">Copy Answer</button>
+        </div>
+
+        <div id="copyMessage" class="message" aria-live="polite"></div>
+    </div>
+
+</div>
+
+<script>
+"use strict";
+
+const ROWS = 9;
+const COLS = 9;
+const LABELS = "ABCDEFGHI";
+
+let problem = createEmptyBoard();
+let user = createEmptyBoard();
+let selectedRow = -1;
+let selectedCol = -1;
+
+const problemInput = document.getElementById("problemInput");
+const loadButton = document.getElementById("loadButton");
+const exampleButton = document.getElementById("exampleButton");
+const message = document.getElementById("message");
+
+const boardPanel = document.getElementById("boardPanel");
+const sudoku = document.getElementById("sudoku");
+
+const answerButton = document.getElementById("answerButton");
+const resetButton = document.getElementById("resetButton");
+
+const answerPanel = document.getElementById("answerPanel");
+const answerOutput = document.getElementById("answerOutput");
+const copyButton = document.getElementById("copyButton");
+const copyMessage = document.getElementById("copyMessage");
+
+
+function createEmptyBoard() {
+    return Array.from(
+        { length: ROWS },
+        () => Array(COLS).fill(0)
+    );
+}
+
+
+function cloneBoard(board) {
+    return board.map(row => [...row]);
+}
+
+
+function showMessage(text, isError = true) {
+    message.textContent = text;
+    message.style.color = isError ? "#b33" : "#26734d";
+}
+
+
+function parseSudoku(text) {
+    const lines = text
+        .split(/\r?\n/)
+        .map(line => line.trimEnd())
+        .filter(line => line.trim().length > 0);
+
+    const board = [];
+
+    for (const originalLine of lines) {
+
+        let line = originalLine.trim();
+
+        /*
+         * Ignore separator lines.
+         *
+         * Example:
+         * ------+-------+------
+         */
+        if (/^[\s\-+|─—]+$/.test(line)) {
+            continue;
+        }
+
+        /*
+         * Ignore the column header.
+         *
+         * Example:
+         * 1 2 3 | 4 5 6 | 7 8 9
+         */
+        if (/^1\s+2\s+3\s*\|\s*4\s+5\s+6\s*\|\s*7\s+8\s+9\s*$/.test(line)) {
+            continue;
+        }
+
+        /*
+         * Remove row labels A–I.
+         *
+         * Example:
+         * A   . 5 3 | . . 4 | 1 . 2
+         *
+         * ↓
+         *
+         * . 5 3 | . . 4 | 1 . 2
+         */
+        line = line.replace(/^[A-Ia-i]\s+/, "");
+
+        /*
+         * Remove Sudoku separators.
+         */
+        line = line
+            .replace(/\|/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        /*
+         * Handle a row label that remains at the end.
+         */
+        line = line.replace(/\s+[A-Ia-i]$/, "");
+
+        /*
+         * Normal format:
+         *
+         * . 5 3 . . 4 1 . 2
+         */
+        const tokens = line.split(/\s+/);
+
+        if (
+            tokens.length === 9 &&
+            tokens.every(token => /^[1-9.]$/.test(token))
+        ) {
+            board.push(
+                tokens.map(token =>
+                    token === "." ? 0 : Number(token)
+                )
+            );
+
+            continue;
+        }
+
+        /*
+         * Also support a compact format:
+         *
+         * .53..41.2
+         */
+        const compact = line.replace(/\s/g, "");
+
+        if (/^[1-9.]{9}$/.test(compact)) {
+            board.push(
+                [...compact].map(ch =>
+                    ch === "." ? 0 : Number(ch)
+                )
+            );
+        }
+    }
+
+    /*
+     * Show an error if exactly 9 rows were not detected.
+     */
+    if (board.length !== 9) {
+        throw new Error(
+            `Could not recognize 9 Sudoku rows. Detected ${board.length} rows.`
+        );
+    }
+
+    return board;
+}
+
+
+function renderBoard() {
+    sudoku.innerHTML = "";
+
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = "cell";
+
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+
+            const given = problem[r][c] !== 0;
+            const value = given ? problem[r][c] : user[r][c];
+
+            if (given) {
+                cell.classList.add("given");
+            } else if (value !== 0) {
+                cell.classList.add("user");
+            }
+
+            if (r === selectedRow && c === selectedCol) {
+                cell.classList.add("selected");
+            }
+
+            // Highlight the same row / column / block.
+            if (
+                selectedRow >= 0 &&
+                (
+                    r === selectedRow ||
+                    c === selectedCol ||
+                    (
+                        Math.floor(r / 3) === Math.floor(selectedRow / 3) &&
+                        Math.floor(c / 3) === Math.floor(selectedCol / 3)
+                    )
+                )
+            ) {
+                if (!(r === selectedRow && c === selectedCol)) {
+                    cell.classList.add("related");
+                }
+            }
+
+            // Highlight cells containing the same number.
+            if (
+                selectedRow >= 0 &&
+                selectedCol >= 0
+            ) {
+                const selectedValue =
+                    problem[selectedRow][selectedCol] ||
+                    user[selectedRow][selectedCol];
+
+                if (
+                    selectedValue !== 0 &&
+                    value === selectedValue &&
+                    !(r === selectedRow && c === selectedCol)
+                ) {
+                    cell.classList.add("same-number");
+                }
+            }
+
+            cell.textContent = value === 0 ? "" : String(value);
+
+            cell.setAttribute(
+                "aria-label",
+                `${LABELS[r]}${c + 1} ${value === 0 ? "blank" : value}`
+            );
+
+            cell.addEventListener("click", () => {
+                selectCell(r, c);
+            });
+
+            sudoku.appendChild(cell);
+        }
+    }
+}
+
+
+function selectCell(row, col) {
+    selectedRow = row;
+    selectedCol = col;
+
+    renderBoard();
+}
+
+
+function enterNumber(number) {
+
+    if (selectedRow < 0 || selectedCol < 0) {
+        return;
+    }
+
+    // Given cells cannot be edited.
+    if (problem[selectedRow][selectedCol] !== 0) {
+        return;
+    }
+
+    user[selectedRow][selectedCol] = number;
+
+    renderBoard();
+}
+
+
+function moveSelection(dr, dc) {
+
+    if (selectedRow < 0 || selectedCol < 0) {
+        return;
+    }
+
+    let r = selectedRow + dr;
+    let c = selectedCol + dc;
+
+    r = Math.max(0, Math.min(ROWS - 1, r));
+    c = Math.max(0, Math.min(COLS - 1, c));
+
+    selectCell(r, c);
+}
+
+
+function createAnswer() {
+
+    const lines = [];
+
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+
+            // Only cells that were blank in the original problem.
+            if (problem[r][c] === 0) {
+
+                const value = user[r][c];
+
+                if (value !== 0) {
+                    lines.push(`${LABELS[r]}${c + 1}=${value}`);
+                }
+            }
+        }
+    }
+
+    answerOutput.value = lines.join("\n");
+
+    answerPanel.classList.remove("hidden");
+
+    if (lines.length === 0) {
+        copyMessage.textContent =
+            "No answers have been entered yet.";
+        copyMessage.style.color = "#b33";
+    } else {
+        copyMessage.textContent =
+            `Created ${lines.length} answers.`;
+        copyMessage.style.color = "#26734d";
+    }
+
+    answerPanel.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+}
+
+
+async function copyAnswer() {
+
+    const text = answerOutput.value;
+
+    if (!text) {
+        copyMessage.textContent = "There is no answer to copy.";
+        copyMessage.style.color = "#b33";
+        return;
+    }
+
+    try {
+
+        await navigator.clipboard.writeText(text);
+
+        copyMessage.textContent =
+            "Answer copied. Paste it into Discord.";
+        copyMessage.style.color = "#26734d";
+
+    } catch (error) {
+
+        // Fallback for browsers that do not support Clipboard API.
+        answerOutput.focus();
+        answerOutput.select();
+
+        const success = document.execCommand("copy");
+
+        copyMessage.textContent = success
+            ? "Answer copied."
+            : "Could not copy. Please select the answer and copy it manually.";
+
+        copyMessage.style.color = success
+            ? "#26734d"
+            : "#b33";
+    }
+}
+
+
+function resetBoard() {
+
+    user = createEmptyBoard();
+    selectedRow = -1;
+    selectedCol = -1;
+
+    answerOutput.value = "";
+    answerPanel.classList.add("hidden");
+
+    renderBoard();
+}
+
+
+function loadProblem() {
+
+    try {
+
+        const parsed = parseSudoku(problemInput.value);
+
+        problem = parsed;
+        user = createEmptyBoard();
+
+        selectedRow = -1;
+        selectedCol = -1;
+
+        renderBoard();
+
+        boardPanel.classList.remove("hidden");
+        answerPanel.classList.add("hidden");
+
+        showMessage(
+            "Puzzle loaded. Tap a blank cell to enter your solution.",
+            false
+        );
+
+    } catch (error) {
+
+        boardPanel.classList.add("hidden");
+        answerPanel.classList.add("hidden");
+
+        showMessage(error.message, true);
+    }
+}
+
+
+const exampleText =
+`    1 2 3 | 4 5 6 | 7 8 9
+A   . 5 3 | . . 4 | 1 . 2
+B   . . 1 | 5 8 . | . 6 9
+C   6 . . | 2 7 . | 3 . 5
+    ------+-------+------
+D   2 . 6 | . 5 7 | . 9 4
+E   . . . | . 9 . | . . .
+F   . 4 8 | 1 2 6 | 7 . 3
+    ------+-------+------
+G   . 6 9 | 7 3 . | . . 8
+H   . . 2 | . 4 . | . . .
+I   4 . . | . 1 9 | 2 3 7`;
+
+
+loadButton.addEventListener("click", loadProblem);
+
+
+exampleButton.addEventListener("click", () => {
+    problemInput.value = exampleText;
+    showMessage(
+        "Example puzzle loaded. Click “Load Puzzle” to display it.",
+        false
+    );
+});
+
+
+answerButton.addEventListener("click", createAnswer);
+
+
+copyButton.addEventListener("click", copyAnswer);
+
+
+resetButton.addEventListener("click", resetBoard);
+
+
+// Numeric keypad.
+document.querySelectorAll("#keypad button[data-number]")
+    .forEach(button => {
+
+        button.addEventListener("click", () => {
+
+            const number = Number(button.dataset.number);
+
+            enterNumber(number);
+        });
+    });
+
+
+// Keyboard input.
+document.addEventListener("keydown", event => {
+
+    // Do not intercept typing in the textarea.
+    if (
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLInputElement
+    ) {
+        return;
+    }
+
+    if (selectedRow < 0 || selectedCol < 0) {
+        return;
+    }
+
+    if (/^[1-9]$/.test(event.key)) {
+        event.preventDefault();
+        enterNumber(Number(event.key));
+        return;
+    }
+
+    if (
+        event.key === "Backspace" ||
+        event.key === "Delete" ||
+        event.key === "0"
+    ) {
+        event.preventDefault();
+        enterNumber(0);
+        return;
+    }
+
+    switch (event.key) {
+
+        case "ArrowUp":
+            event.preventDefault();
+            moveSelection(-1, 0);
+            break;
+
+        case "ArrowDown":
+            event.preventDefault();
+            moveSelection(1, 0);
+            break;
+
+        case "ArrowLeft":
+            event.preventDefault();
+            moveSelection(0, -1);
+            break;
+
+        case "ArrowRight":
+            event.preventDefault();
+            moveSelection(0, 1);
+            break;
+    }
+});
+</script>
+
+</body>
+</html>
