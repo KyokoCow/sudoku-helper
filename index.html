@@ -373,102 +373,49 @@ function showMessage(text, isError = true) {
 }
 
 
-function parseSudoku(text) {
-    const lines = text
-        .split(/\r?\n/)
-        .map(line => line.trimEnd())
-        .filter(line => line.trim().length > 0);
 
+function parseSudoku(text) {
+    const lines = text.split(/\r?\n/);
     const board = [];
 
+    // Convert emoji digits and blanks to plain text.
+    function normalizeSymbols(line) {
+        return line
+            .replace(/([1-9])\uFE0F?\u20E3/g, "$1")
+            .replace(/[⬜⬛🔲🔳]/g, ".")
+            .replace(/\uFE0F/g, "");
+    }
+
     for (const originalLine of lines) {
+        let line = normalizeSymbols(originalLine).trim();
 
-        let line = originalLine.trim();
+        if (!line) continue;
 
-        /*
-         * Ignore separator lines.
-         *
-         * Example:
-         * ------+-------+------
-         */
-        if (/^[\s\-+|─—]+$/.test(line)) {
-            continue;
+        // Remove row labels A-I followed by a pipe
+        // or whitespace.
+        const rowMatch = line.match(/^([A-Ia-i])(?:\s*\||\s+)/);
+
+        if (rowMatch) {
+            line = line.slice(rowMatch[0].length);
+        } else {
+            // Ignore column headers and separator lines.
+            if (/^[\d\s|]+$/.test(line)) continue;
+            if (/^[-+|─—━➖\s]+$/.test(line)) continue;
         }
 
-        /*
-         * Ignore the column header.
-         *
-         * Example:
-         * 1 2 3 | 4 5 6 | 7 8 9
-         */
-        if (/^1\s+2\s+3\s*\|\s*4\s+5\s+6\s*\|\s*7\s+8\s+9\s*$/.test(line)) {
-            continue;
-        }
+        // Remove grid separators and whitespace.
+        line = line.replace(/[|\s]/g, "");
 
-        /*
-         * Remove row labels A–I.
-         *
-         * Example:
-         * A   . 5 3 | . . 4 | 1 . 2
-         *
-         * ↓
-         *
-         * . 5 3 | . . 4 | 1 . 2
-         */
-        line = line.replace(/^[A-Ia-i]\s+/, "");
-
-        /*
-         * Remove Sudoku separators.
-         */
-        line = line
-            .replace(/\|/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-
-        /*
-         * Handle a row label that remains at the end.
-         */
-        line = line.replace(/\s+[A-Ia-i]$/, "");
-
-        /*
-         * Normal format:
-         *
-         * . 5 3 . . 4 1 . 2
-         */
-        const tokens = line.split(/\s+/);
-
-        if (
-            tokens.length === 9 &&
-            tokens.every(token => /^[1-9.]$/.test(token))
-        ) {
+        // Accept nine digits or blanks.
+        if (/^[1-9.]{9}$/.test(line)) {
             board.push(
-                tokens.map(token =>
-                    token === "." ? 0 : Number(token)
-                )
-            );
-
-            continue;
-        }
-
-        /*
-         * Also support a compact format:
-         *
-         * .53..41.2
-         */
-        const compact = line.replace(/\s/g, "");
-
-        if (/^[1-9.]{9}$/.test(compact)) {
-            board.push(
-                [...compact].map(ch =>
+                [...line].map(ch =>
                     ch === "." ? 0 : Number(ch)
                 )
             );
         }
     }
 
-    /*
-     * Show an error if exactly 9 rows were not detected.
-     */
     if (board.length !== 9) {
         throw new Error(
             `Could not recognize 9 Sudoku rows. Detected ${board.length} rows.`
@@ -477,6 +424,7 @@ function parseSudoku(text) {
 
     return board;
 }
+
 
 
 function renderBoard() {
